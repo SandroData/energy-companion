@@ -2,21 +2,30 @@
 
 import { useEffect, useState } from "react";
 
+type Insights = {
+  total_activities: number;
+  top_type: string | null;
+  top_time_of_day: string | null;
+  avg_duration_min: number;
+  outdoor_pct: number;
+};
+
+type ApiResponse =
+  | { ok: true; insights: Insights | null }
+  | { ok: false; error: string };
+
 export default function InsightsPage() {
-  const [insights, setInsights] = useState<any>(null);
+  const [insights, setInsights] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/insights")
-      .then((res) => res.json())
+      .then((res) => res.json() as Promise<ApiResponse>)
       .then((data) => {
-        setInsights(data.insights);
+        if ("ok" in data && data.ok) setInsights(data.insights ?? null);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("Error loading insights:", err);
-        setLoading(false);
-      });
+      .catch(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="p-8">Loading insights...</div>;
@@ -27,31 +36,22 @@ export default function InsightsPage() {
       <h1 className="text-3xl font-bold mb-6">Training Insights</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        <div className="p-4 bg-blue-100 rounded-xl shadow">
-          <p className="text-4xl font-bold">{insights.total_activities}</p>
-          <p className="text-sm text-gray-700">Total Activities</p>
-        </div>
-
-        <div className="p-4 bg-green-100 rounded-xl shadow">
-          <p className="text-4xl font-bold">{insights.avg_duration_min}</p>
-          <p className="text-sm text-gray-700">Avg Duration (min)</p>
-        </div>
-
-        <div className="p-4 bg-yellow-100 rounded-xl shadow">
-          <p className="text-4xl font-bold">{insights.outdoor_pct}%</p>
-          <p className="text-sm text-gray-700">Outdoor Sessions</p>
-        </div>
-
-        <div className="p-4 bg-purple-100 rounded-xl shadow">
-          <p className="text-2xl font-bold">{insights.top_type}</p>
-          <p className="text-sm text-gray-700">Most Common Activity</p>
-        </div>
-
-        <div className="p-4 bg-pink-100 rounded-xl shadow">
-          <p className="text-2xl font-bold">{insights.top_time_of_day}</p>
-          <p className="text-sm text-gray-700">Favorite Time of Day</p>
-        </div>
+        <Card label="Total Activities" value={insights.total_activities} />
+        <Card label="Avg Duration (min)" value={insights.avg_duration_min} />
+        <Card label="Outdoor Sessions" value={`${insights.outdoor_pct}%`} />
+        <Card label="Most Common Activity" value={insights.top_type ?? "—"} />
+        <Card label="Favorite Time of Day" value={insights.top_time_of_day ?? "—"} />
       </div>
     </div>
   );
 }
+
+function Card({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="p-4 bg-white border rounded-xl shadow-sm flex items-center justify-between">
+      <span className="text-gray-600">{label}</span>
+      <span className="font-semibold">{value}</span>
+    </div>
+  );
+}
+
