@@ -1,19 +1,25 @@
-export default function Home() {
-  const authUrl = new URL('https://www.strava.com/oauth/authorize');
-  authUrl.searchParams.set('client_id', process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID ?? process.env.STRAVA_CLIENT_ID!);
-  authUrl.searchParams.set('redirect_uri', process.env.STRAVA_REDIRECT_URI!);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('scope', 'activity:read_all');
+'use client';
 
-  return (
-    <main className="min-h-screen flex items-center justify-center">
-      <a
-        href={authUrl.toString()}
-        className="rounded px-4 py-2 bg-orange-600 text-white"
-      >
-        Connect Strava
-      </a>
-    </main>
-  );
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function RootForward() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const next = '/en'; // default landing locale
+    const qs = window.location.search;   // e.g. ?code=...
+    const hash = window.location.hash;   // e.g. #access_token=...
+
+    if (qs.includes('code=') || hash.includes('access_token=')) {
+      // Preserve BOTH query and hash; also pass your "next" target
+      const joiner = qs ? '&' : '?';
+      window.location.replace(`/auth/callback${qs}${hash}${joiner}next=${encodeURIComponent(next)}`);
+    } else {
+      // No auth params – just go to the default locale
+      router.replace(next);
+    }
+  }, [router]);
+
+  return null;
 }
-

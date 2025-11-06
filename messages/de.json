@@ -1,0 +1,17 @@
+{
+  "Dashboard": {
+    "title": "Energie-Dashboard",
+    "lastSync": "Letzte Synchronisierung",
+    "totalActivities": "Aktivitäten gesamt (60 Tage)",
+    "avgDuration": "Durchschn. Dauer (Min.)",
+    "outdoorPct": "Outdoor %",
+    "mostFrequentSport": "Häufigste Sportart",
+    "avgStartTime": "Durchschn. Startzeit (UTC)",
+    "longestStreak": "Längste Serie",
+    "days": "Tage",
+    "preferredDuration": "Bevorzugte Dauer"
+  },
+  "Actions": {
+    "sync": "Letzte 60 Tage synchronisieren"
+  }
+}

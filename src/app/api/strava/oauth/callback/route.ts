@@ -1,3 +1,4 @@
+// app/api/strava/oauth/callback/route.ts
 import { NextResponse } from "next/server";
 import axios, { AxiosResponse } from "axios";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -12,9 +13,27 @@ type StravaTokenResponse = {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
-  if (!code) return NextResponse.json({ ok: false, error: "Missing code" }, { status: 400 });
+  const stateRaw = searchParams.get("state");
+
+  if (!code) {
+    return NextResponse.json({ ok: false, error: "Missing code" }, { status: 400 });
+  }
+
+  // Extract data we passed in `state` when starting OAuth (user id + return path)
+  let userIdFromState: string | undefined;
+  let returnPath = "/";
+  try {
+    if (stateRaw) {
+      const parsed = JSON.parse(decodeURIComponent(stateRaw));
+      userIdFromState = parsed?.u;
+      returnPath = parsed?.r ?? "/";
+    }
+  } catch {
+    /* ignore */
+  }
 
   try {
+    // 1️⃣ Exchange code → tokens
     const res: AxiosResponse<StravaTokenResponse> = await axios.post(
       "https://www.strava.com/oauth/token",
       {
@@ -28,25 +47,39 @@ export async function GET(req: Request) {
     const { access_token, refresh_token, expires_at, athlete } = res.data;
     const athlete_id = athlete?.id;
 
-    // temp user (we'll swap to real auth later)
-    const { data: user, error: userErr } = await supabaseAdmin
-      .from("users")
-      .insert({ email: `strava+${athlete_id}@example.com` })
-      .select()
-      .single();
-    if (userErr || !user) throw userErr ?? new Error("User insert failed");
+    // 2️⃣ Decide which user to link
+    let userId = userIdFromState;
+    if (!userId) {
+      // fallback: still allow temp user creation if you don’t have login yet
+      const { data: tempUser, error: tempErr } = await supabaseAdmin
+        .from("users")
+        .insert({ email: `strava+${athlete_id}@example.com` })
+        .select()
+        .single();
+      if (tempErr || !tempUser) throw tempErr ?? new Error("User insert failed");
+      userId = tempUser.id;
+    }
 
-    const { error: connErr } = await supabaseAdmin.from("connections").insert({
-      user_id: user.id,
-      provider: "strava",
-      access_token,
-      refresh_token,
-      athlete_id,
-      expires_at: new Date(expires_at * 1000).toISOString(),
-    });
+    // 3️⃣ Upsert connection for this user
+    const { error: connErr } = await supabaseAdmin
+      .from("connections")
+      .upsert(
+        {
+          user_id: userId,
+          provider: "strava",
+          athlete_id,
+          access_token,
+          refresh_token,
+          expires_at: new Date(expires_at * 1000).toISOString(),
+        },
+        { onConflict: "user_id,provider" } // adjust to your unique index
+      );
     if (connErr) throw connErr;
 
-    return NextResponse.redirect(new URL("/?connected=strava", req.url));
+    // 4️⃣ Redirect back to dashboard (or last page)
+    return NextResponse.redirect(
+      new URL(`${returnPath}?connected=strava`, process.env.NEXT_PUBLIC_SITE_URL)
+    );
   } catch (e) {
     const msg =
       (e as { response?: { data?: unknown }; message?: string })?.response?.data ??
@@ -56,4 +89,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "OAuth failed" }, { status: 500 });
   }
 }
-
